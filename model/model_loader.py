@@ -333,7 +333,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the model
 model = vgg16(pretrained=False, delta=delta)
 model = torch.nn.DataParallel(model).to(device)
-checkpoint = torch.load('model/weak_20.pth', map_location=device)
+checkpoint = torch.load('model/weak_20.pth', map_location=device, weights_only=False)
 model.module.load_state_dict(checkpoint['model_state'])
 model.eval()
 
