@@ -1,14 +1,5 @@
-.git/
-__pycache__/
+.git
+__pycache__
 *.pyc
 *.pyo
-*.log
-*.md
-venv/
 .env
-*.tar.gz
-*.jpg
-*.jpeg
-*.png
-*.mp4
-*.avi
