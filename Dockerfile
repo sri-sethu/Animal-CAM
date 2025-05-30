@@ -26,6 +26,9 @@ WORKDIR /app
 # Copy only dependency file first to leverage Docker cache
 COPY requirements.txt .
 
+# Add this before installing Python dependencies
+RUN apt-get update && apt-get install -y libgl1-mesa-glx
+
 # Install Python dependencies
 RUN pip install --upgrade pip --root-user-action=ignore
 RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
