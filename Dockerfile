@@ -8,14 +8,14 @@ ENV PYTHONUNBUFFERED=1
 # Install Git LFS, git, and necessary system packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        git-lfs \
-        gcc \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender-dev && \
+    git \
+    curl \
+    git-lfs \
+    gcc \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev && \
     git lfs install && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -27,8 +27,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip --root-user-action=ignore
+RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
