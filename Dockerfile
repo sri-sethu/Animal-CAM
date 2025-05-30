@@ -1,33 +1,43 @@
-# Use a lightweight Python image
+# Use a lightweight Python base image
 FROM python:3.13-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install pip and system updates
+# Install Git LFS, git, and necessary system packages
 RUN apt-get update && \
-    sudo apt install git-lfs && \
-    apt-get install -y --no-install-recommends gcc curl && \
-    pip install --upgrade pip && \
+    apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        git-lfs \
+        gcc \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev && \
+    git lfs install && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-
-# Set working directory
+# Set work directory
 WORKDIR /app
 
-# Install dependencies
+# Copy only dependency file first to leverage Docker cache
 COPY requirements.txt .
 
-RUN git lfs install
-RUN git lfs pull
-
+# Install Python dependencies
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir --timeout=100 --retries=10 --resume-retries=5 -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
+# Copy the rest of the application code
 COPY . .
 
-# Run Gunicorn server
+# Make sure LFS files are pulled
+RUN git lfs pull || echo "Git LFS pull failed (possibly not a git repo inside Docker build)"
+
+# Expose port (optional)
+EXPOSE 5000
+
+# Start the app with Gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
