@@ -33,10 +33,6 @@ RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Make sure LFS files are pulled
-RUN git lfs track "*.psd"
-RUN git lfs pull || echo "Git LFS pull failed (possibly not a git repo inside Docker build)"
-
 # Expose port (optional)
 EXPOSE 5000
 
