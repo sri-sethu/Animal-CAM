@@ -1,9 +1,14 @@
-.dockerignore
-
-# Ignore .git directory
 .git/
-
-# Ignore Python bytecode files
+__pycache__/
 *.pyc
 *.pyo
-__pycache__/
+*.log
+*.md
+venv/
+.env
+*.tar.gz
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
