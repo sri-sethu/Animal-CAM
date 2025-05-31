@@ -1,6 +1,0 @@
-Flask==3.1.1
-gunicorn==23.0.0
-numpy==2.2.6
-opencv-python-headless
-torch==2.7.0
-torchvision==0.22.0
