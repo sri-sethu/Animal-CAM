@@ -9,20 +9,12 @@ import os
 
 model_urls = {'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth'}
 
-
 class DRS_learnable(nn.Module):
-    """
-    DRS learnable setting
-    hyperparameter X , additional training paramters O
-    """
-
     def __init__(self, channel):
         super(DRS_learnable, self).__init__()
         self.relu = nn.ReLU()
-
         self.global_max_pool = nn.AdaptiveMaxPool2d(1)
         self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
-
         self.fc = nn.Sequential(
             nn.Linear(channel, channel, bias=False),
             nn.Sigmoid(),
@@ -30,60 +22,30 @@ class DRS_learnable(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-
         x = self.relu(x)
-
-        """ 1: max extractor """
-        x_max = self.global_max_pool(x).view(b, c, 1, 1)
-        x_max = x_max.expand_as(x)
-
-        """ 2: suppression controller"""
+        x_max = self.global_max_pool(x).view(b, c, 1, 1).expand_as(x)
         control = self.global_avg_pool(x).view(b, c)
-        control = self.fc(control).view(b, c, 1, 1)
-        control = control.expand_as(x)
-
-        """ 3: suppressor"""
+        control = self.fc(control).view(b, c, 1, 1).expand_as(x)
         x = torch.min(x, x_max * control)
-
         return x
 
-
 class DRS(nn.Module):
-    """
-    DRS non-learnable setting
-    hyperparameter O , additional training paramters X
-    """
-
     def __init__(self, delta):
         super(DRS, self).__init__()
         self.relu = nn.ReLU()
         self.delta = delta
-
         self.global_max_pool = nn.AdaptiveMaxPool2d(1)
 
     def forward(self, x):
         b, c, _, _ = x.size()
-
         x = self.relu(x)
-
-        """ 1: max extractor """
-        x_max = self.global_max_pool(x).view(b, c, 1, 1)
-        x_max = x_max.expand_as(x)
-
-        """ 2: suppression controller"""
-        control = self.delta
-
-        """ 3: suppressor"""
-        x = torch.min(x, x_max * control)
-
+        x_max = self.global_max_pool(x).view(b, c, 1, 1).expand_as(x)
+        x = torch.min(x, x_max * self.delta)
         return x
-
 
 class VGG(nn.Module):
     def __init__(self, features, delta=0.6, num_classes=14, init_weights=True):
-
         super(VGG, self).__init__()
-
         self.features = features
 
         self.layer1_conv1 = features[0]
@@ -127,7 +89,7 @@ class VGG(nn.Module):
         self.extra_relu2 = DRS_learnable(512) if delta == 0 else DRS(delta)
         self.extra_conv3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
         self.extra_relu3 = DRS_learnable(512) if delta == 0 else DRS(delta)
-        self.extra_conv4 = nn.Conv2d(512, 14, kernel_size=1)
+        self.extra_conv4 = nn.Conv2d(512, num_classes, kernel_size=1)
 
         if init_weights:
             self._initialize_weights(self.extra_conv1)
@@ -138,19 +100,13 @@ class VGG(nn.Module):
             self._initialize_weights(self.extra_relu3)
             self._initialize_weights(self.extra_conv4)
 
-            self._initialize_weights(self.layer1_relu1)
-            self._initialize_weights(self.layer1_relu2)
-            self._initialize_weights(self.layer2_relu1)
-            self._initialize_weights(self.layer2_relu2)
-            self._initialize_weights(self.layer3_relu1)
-            self._initialize_weights(self.layer3_relu2)
-            self._initialize_weights(self.layer3_relu3)
-            self._initialize_weights(self.layer4_relu1)
-            self._initialize_weights(self.layer4_relu2)
-            self._initialize_weights(self.layer4_relu3)
-            self._initialize_weights(self.layer5_relu1)
-            self._initialize_weights(self.layer5_relu2)
-            self._initialize_weights(self.layer5_relu3)
+            for relu in [
+                self.layer1_relu1, self.layer1_relu2, self.layer2_relu1, self.layer2_relu2,
+                self.layer3_relu1, self.layer3_relu2, self.layer3_relu3,
+                self.layer4_relu1, self.layer4_relu2, self.layer4_relu3,
+                self.layer5_relu1, self.layer5_relu2, self.layer5_relu3,
+            ]:
+                self._initialize_weights(relu)
 
     def forward(self, x, label=None, size=None):
         if size is None:
@@ -196,7 +152,7 @@ class VGG(nn.Module):
         x = self.layer5_conv3(x)
         x = self.layer5_relu3(x)
 
-        # extra layer
+        # extra
         x = self.extra_conv1(x)
         x = self.extra_relu1(x)
         x = self.extra_conv2(x)
@@ -204,32 +160,24 @@ class VGG(nn.Module):
         x = self.extra_conv3(x)
         x = self.extra_relu3(x)
         x = self.extra_conv4(x)
-        # ==============================
 
         logit = self.fc(x)
 
         if label is None:
-            # for training
             return logit
-
         else:
-            # for validation
             cam = self.cam_normalize(x.detach(), size, label)
-
             return logit, cam
 
     def fc(self, x):
         x = F.adaptive_avg_pool2d(x, output_size=1)
-        x = x.view(x.size(0), -1)
-        return x
+        return x.view(x.size(0), -1)
 
     def cam_normalize(self, cam, size, label):
         cam = F.relu(cam)
         cam = F.interpolate(cam, size=size, mode='bilinear', align_corners=True)
         cam /= F.adaptive_max_pool2d(cam, 1) + 1e-5
-
-        cam = cam * label[:, :, None, None]  # clean
-
+        cam = cam * label[:, :, None, None]
         return cam
 
     def _initialize_weights(self, layer):
@@ -250,61 +198,36 @@ class VGG(nn.Module):
 
     def get_parameter_groups(self):
         groups = ([], [], [], [])
-
-        for name, value in self.named_parameters():
-
+        for name, param in self.named_parameters():
             if 'extra' in name or 'fc' in name:
-                if 'weight' in name:
-                    groups[2].append(value)
-                else:
-                    groups[3].append(value)
+                (groups[2] if 'weight' in name else groups[3]).append(param)
             else:
-                if 'weight' in name:
-                    groups[0].append(value)
-                else:
-                    groups[1].append(value)
+                (groups[0] if 'weight' in name else groups[1]).append(param)
         return groups
-
-
-#######################################################################################################
-
 
 def make_layers(cfg, batch_norm=False):
     layers = []
     in_channels = 3
-    for i, v in enumerate(cfg):
+    for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-        elif v == 'N':
-            layers += [nn.MaxPool2d(kernel_size=3, stride=1, padding=1)]
         else:
-            if i > 13:
-                conv2d = nn.Conv2d(in_channels, v, kernel_size=3, dilation=2, padding=2)
-            else:
-                conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-            if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
-            else:
-                layers += [conv2d, nn.ReLU(inplace=True)]
+            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+            layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = v
     return nn.Sequential(*layers)
 
+def vgg16(pretrained=False, delta=0.6):
+    cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M',
+           512, 512, 512, 'M', 512, 512, 512]
 
-cfg = {
-    'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'D': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'D1': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'N', 512, 512, 512],
-    'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-}
-
-
-def vgg16(pretrained=True, delta=0.6):
-    model = VGG(make_layers(cfg['D1']), delta=delta)
+    features = make_layers(cfg)
 
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['vgg16']), strict=False)
+        state_dict = model_zoo.load_url(model_urls['vgg16'])
+        features.load_state_dict(state_dict, strict=False)
 
+    model = VGG(features, delta=delta)
     return model
 
 
