@@ -326,14 +326,23 @@ from PIL import Image
 import numpy as np
 import cv2
 import os
+import gdown
 
 delta = 0.5
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Download model from Google Drive if not already downloaded
+model_path = 'model/weak_20.pth'
+if not os.path.exists(model_path):
+    os.makedirs('model', exist_ok=True)
+    file_id = "1c--qGJLB3l_5I_YR4a0HNi91rJqE7ZNB"
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, model_path, quiet=False)
+
 # Load the model
 model = vgg16(pretrained=False, delta=delta)
 model = torch.nn.DataParallel(model).to(device)
-checkpoint = torch.load('model/weak_20.pth', map_location=device)
+checkpoint = torch.load(model_path, map_location=device)
 model.module.load_state_dict(checkpoint['model_state'])
 model.eval()
 
