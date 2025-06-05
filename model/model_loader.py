@@ -7,9 +7,6 @@ import cv2
 import numpy as np
 import os
 
-model_urls = {'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth'}
-
-
 class DRS_learnable(nn.Module):
     """
     DRS learnable setting
@@ -301,24 +298,7 @@ cfg = {
 
 def vgg16(pretrained=True, delta=0.6):
     model = VGG(make_layers(cfg['D1']), delta=delta)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['vgg16']), strict=False)
-
     return model
-
-
-import copy
-
-model = vgg16(pretrained=True, delta=0.6)
-
-#print(model)
-
-input = torch.randn(2, 3, 512, 512)
-
-out = model(input)
-
-model.get_parameter_groups()
 
 import torch
 from torchvision import transforms
